@@ -11,58 +11,81 @@ MODEL_PATH = "model.joblib"
 if os.path.exists(MODEL_PATH):
     model = joblib.load(MODEL_PATH)
 else:
-    raise FileNotFoundError(f"Model missing at {MODEL_PATH}")
+    raise FileNotFoundError(f"Model file missing at {MODEL_PATH}")
 
-# Molecular Weights of Bases (g/mol)
-BASE_WEIGHTS = {'A': 313.2, 'T': 304.2, 'C': 289.2, 'G': 329.2}
+# Standard Molecular Masses (g/mol)
+MOL_WEIGHTS = {'A': 313.2, 'T': 304.2, 'C': 289.2, 'G': 329.2}
 
-def get_molecular_weight(seq):
-    return sum(BASE_WEIGHTS.get(base, 0) for base in seq)
-
-def calculate_cpg_count(seq):
-    # CpG dinucleotides are hotspots for mutation via deamination
-    return seq.count("CG")
-
-def check_palindrome(seq):
-    if not seq or len(seq) < 2:
-        return "No"
-    # Complementary matching
-    comp = {"A": "T", "T": "A", "C": "G", "G": "C"}
-    rev_comp = "".join(comp.get(base, base) for base in reversed(seq))
-    return "Yes (Self-Complementary Hairpin Risk)" if seq == rev_comp else "No"
-
-def get_biochemical_profile(seq):
+def compute_ultra_genomic_metrics(seq):
     if not seq:
-        return {"purines": 0, "pyrimidines": 0, "keto": 0, "amino": 0}
-    length = len(seq)
-    # Purines (A, G) vs Pyrimidines (C, T)
-    purines = seq.count('A') + seq.count('G')
-    # Keto (G, T) vs Amino (A, C) hydrogen bonding profiles
-    keto = seq.count('G') + seq.count('T')
+        return {}
     
+    length = len(seq)
+    a, t, c, g = seq.count('A'), seq.count('T'), seq.count('C'), seq.count('G')
+    
+    # 1. Standard Percentages
+    gc_content = ((g + c) / length) * 100
+    at_content = ((a + t) / length) * 100
+    
+    # 2. Stranded Skew Analysis (Genomic Directionality indicators)
+    gc_skew = (g - c) / (g + c) if (g + c) > 0 else 0.0
+    at_skew = (a - t) / (a + t) if (a + t) > 0 else 0.0
+    
+    # 3. Structural Ring Mass Ratios
+    purines = a + g
+    pyrimidines = c + t
+    
+    # 4. Hydrogen Bonding Integrity (Thermal Stability proxy)
+    # G-C bonds share 3 hydrogen bonds; A-T share 2.
+    h_bonds = (3 * (g + c)) + (2 * (a + t))
+    
+    # 5. Shannon Entropy Calculation
+    entropy = 0.0
+    for count in [a, t, c, g]:
+        if count > 0:
+            p = count / length
+            entropy -= p * math.log2(p)
+            
+    # 6. Homopolymer Slippage Check (Longest run of identical bases)
+    max_run = 1
+    current_run = 1
+    for i in range(1, len(seq)):
+        if seq[i] == seq[i-1]:
+            current_run += 1
+            if current_run > max_run:
+                max_run = current_run
+        else:
+            current_run = 1
+
     return {
-        "purine_pct": round((purines / length) * 100, 1),
-        "pyrimidine_pct": round(((length - purines) / length) * 100, 1),
-        "hydrogen_bonding_profile": f"Keto: {round((keto/length)*100,1)}% | Amino: {round(((length-keto)/length)*100,1)}%"
+        "length": length,
+        "gc_content": round(gc_content, 1),
+        "at_content": round(at_content, 1),
+        "gc_skew": round(gc_skew, 3),
+        "at_skew": round(at_skew, 3),
+        "purine_ratio": round((purines / length) * 100, 1),
+        "pyrimidine_ratio": round((pyrimidines / length) * 100, 1),
+        "hydrogen_bonds": h_bonds,
+        "shannon_entropy": round(entropy, 3),
+        "homopolymer_run": max_run,
+        "molecular_mass": round(sum(MOL_WEIGHTS.get(base, 0) for base in seq), 1)
     }
 
-def analyze_advanced_mechanism(ref, alt):
+def evaluate_structural_impact(ref, alt):
     ref_len, alt_len = len(ref), len(alt)
-    len_diff = abs(ref_len - alt_len)
+    diff = abs(ref_len - alt_len)
     
     if ref_len == 1 and alt_len == 1:
-        transitions = [{"A", "G"}, {"C", "T"}]
-        is_trans = {ref, alt} in transitions
-        mech = "Transition (Same Chemical Class)" if is_trans else "Transversion (Cross-Class Substitution)"
-        consequence = "Point Mutation / Possible Missense or Synonymous"
-        return mech, consequence
+        is_transition = {ref, alt} in [{"A", "G"}, {"C", "T"}]
+        mech = "Transition (Isomorphic Ring Swap)" if is_transition else "Transversion (Steric Hindrance Shift)"
+        return mech, "Point Mutation (Potential Codon Alteration)"
     
-    # Indel checks
-    frameshift = "Disruptive Frameshift (Alters downstream translation)" if len_diff % 3 != 0 else "In-frame Indel (Preserves codon reading frame)"
+    frame_status = "In-Frame Mutation (Preserved Triplet Phase)" if diff % 3 == 0 else "Frameshift Mutation (Disruptive Downstream Translation Run)"
     if ref_len > alt_len:
-        return f"Macro-Deletion (-{len_diff} Nucleotides)", frameshift
-    else:
-        return f"Macro-Insertion (+{len_diff} Nucleotides)", frameshift
+        return f"Nucleotide Deletion (-{diff} bp)", frame_status
+    elif ref_len < alt_len:
+        return f"Nucleotide Insertion (+{diff} bp)", frame_status
+    return "Complex Segment Rearrangement", "Multi-base Substitution Block"
 
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -72,43 +95,37 @@ def predict():
         alt = data.get("alt", "").upper().strip()
         
         if not ref or not alt:
-            return jsonify({"status": "error", "message": "Invalid inputs"}), 400
+            return jsonify({"status": "error", "message": "Incomplete input alleles"}), 400
             
         ref_len, alt_len = len(ref), len(alt)
         var_type = 0 if (ref_len == 1 and alt_len == 1) else (1 if ref_len > alt_len else (2 if ref_len < alt_len else 3))
         
-        # ML Execution
+        # Random Forest Prediction
         prediction = int(model.predict([[ref_len, alt_len, var_type]])[0])
         confidence = float(model.predict_proba([[ref_len, alt_len, var_type]])[0][prediction]) * 100
         
-        # Deep Genomic Extractions
-        mech, consequence = analyze_advanced_mechanism(ref, alt)
-        ref_profile = get_biochemical_profile(ref)
-        alt_profile = get_biochemical_profile(alt)
+        # Deep Metrics Compilation
+        ref_metrics = compute_ultra_genomic_metrics(ref)
+        alt_metrics = compute_ultra_genomic_metrics(alt)
+        mechanism, consequence = evaluate_structural_impact(ref, alt)
         
-        # DNA Mass Delta Calculation
-        mw_delta = get_molecular_weight(alt) - get_molecular_weight(ref)
+        # Advanced Comparative Deltas
+        mass_delta = round(alt_metrics["molecular_mass"] - ref_metrics["molecular_mass"], 1)
+        bond_delta = alt_metrics["hydrogen_bonds"] - ref_metrics["hydrogen_bonds"]
         
         return jsonify({
             "status": "success",
             "prediction": "Pathogenic" if prediction == 1 else "Benign",
             "confidence": f"{confidence:.2f}%",
-            "class": ["Single Nucleotide Variant (SNV)", "Deletion", "Insertion", "Complex Block substitution"][var_type],
-            "mechanism": mech,
-            "consequence": consequence,
-            "mass_delta": f"{mw_delta:+.1f} g/mol",
-            "ref_data": {
-                "gc": round(((ref.count('G') + ref.count('C')) / ref_len) * 100, 1),
-                "cpg": calculate_cpg_count(ref),
-                "hairpin": check_palindrome(ref),
-                "biochem": ref_profile
+            "variant_class": ["Single Nucleotide Variant (SNV)", "Deletion Sequence", "Insertion Sequence", "Complex Block Indel"][var_type],
+            "molecular_mechanism": mechanism,
+            "predicted_consequence": consequence,
+            "comparative_deltas": {
+                "mass_shift_g_mol": f"{mass_delta:+.1f}",
+                "hydrogen_bond_shift": f"{bond_delta:+d}"
             },
-            "alt_data": {
-                "gc": round(((alt.count('G') + alt.count('C')) / alt_len) * 100, 1),
-                "cpg": calculate_cpg_count(alt),
-                "hairpin": check_palindrome(alt),
-                "biochem": alt_profile
-            }
+            "ref_profile": ref_metrics,
+            "alt_profile": alt_metrics
         })
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
