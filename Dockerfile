@@ -1,0 +1,18 @@
+# Use an official lightweight Python image
+FROM python:3.10-slim
+
+# Set the working directory inside the cloud container
+WORKDIR /code
+
+# Copy the requirements file and install dependencies
+COPY ./requirements.txt /code/requirements.txt
+RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
+
+# Copy the rest of the application files into the container
+COPY . .
+
+# Expose the default port Hugging Face listens to
+EXPOSE 7860
+
+# Command to run the application
+CMD ["python", "app.py"]
