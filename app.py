@@ -1,6 +1,7 @@
 import os
 import joblib
 import math
+import requests  # <-- Make sure this line is added here
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
@@ -134,3 +135,71 @@ if __name__ == "__main__":
     import os
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
+if __name__ == "__main__":
+            return jsonify({
+            "status": "success",
+            "prediction": "Pathogenic" if prediction == 1 else "Benign",
+            "confidence": f"{confidence:.2f}%",
+            "variant_class": ["Single Nucleotide Variant (SNV)", "Deletion Sequence", "Insertion Sequence", "Complex Block Indel"][var_type],
+            "molecular_mechanism": mechanism,
+            "predicted_consequence": consequence,
+            "comparative_deltas": {
+                "mass_shift_g_mol": f"{mass_delta:+.1f}",
+                "hydrogen_bond_shift": f"{bond_delta:+d}"
+            },
+            "ref_profile": ref_metrics,
+            "alt_profile": alt_metrics
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# ==========================================
+# THIS IS THE EXACT NEW PLACE FOR THE CODE
+# ==========================================
+@app.route('/explain', methods=['POST'])
+def explain():
+    try:
+        data = request.get_json()
+        metrics = data.get("metrics", {})
+        
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            return jsonify({"insight": "Configuration missing: Please add GEMINI_API_KEY to Render environment variables."}), 200
+
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+        
+        prompt = f"""
+        As an expert clinical bioinformatician, analyze this genetic variant data:
+        - Prediction: {metrics.get('prediction')}
+        - Confidence: {metrics.get('confidence')}
+        - Class: {metrics.get('variant_class')}
+        - Consequence: {metrics.get('predicted_consequence')}
+        - Mass Shift: {metrics.get('comparative_deltas', {}).get('mass_shift_g_mol')} g/mol
+        - Hydrogen Bond Shift: {metrics.get('comparative_deltas', {}).get('hydrogen_bond_shift')} bonds
+        
+        Provide a concise, 3-sentence scientific insight explaining what these changes mean for the DNA structure and protein translation. Keep it professional.
+        """
+
+        payload = {
+            "contents": [{
+                "parts": [{"text": prompt}]
+            }]
+        }
+        
+        response = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=10)
+        response_json = response.json()
+        insight_text = response_json['candidates'][0]['content']['parts'][0]['text']
+        
+        return jsonify({"insight": insight_text.strip()})
+
+    except Exception as e:
+        return jsonify({"insight": f"Gemini engine was unable to compile insights at this time. Error: {str(e)}"}), 200
+
+# ==========================================
+# KEEP THIS ORIGINAL RUNNER CODE AT THE VERY BOTTOM
+# ==========================================
+if __name__ == "__main__":
+    import os
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
+
