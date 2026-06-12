@@ -8,11 +8,12 @@ WORKDIR /code
 COPY ./requirements.txt /code/requirements.txt
 RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
 
-# Copy the rest of the application files into the container
+# Copy all application files (including your templates folder)
 COPY . .
 
-# Expose the default port Hugging Face listens to
+# Expose the network port
 EXPOSE 7860
 
 # Command to run the application
 CMD ["python", "app.py"]
+
