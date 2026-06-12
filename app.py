@@ -1,7 +1,7 @@
 import os
 import joblib
 import math
-import requests  # <-- Make sure this line is added here
+import requests
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
@@ -37,7 +37,6 @@ def compute_ultra_genomic_metrics(seq):
     pyrimidines = c + t
     
     # 4. Hydrogen Bonding Integrity (Thermal Stability proxy)
-    # G-C bonds share 3 hydrogen bonds; A-T share 2.
     h_bonds = (3 * (g + c)) + (2 * (a + t))
     
     # 5. Shannon Entropy Calculation
@@ -88,6 +87,7 @@ def evaluate_structural_impact(ref, alt):
         return f"Nucleotide Insertion (+{diff} bp)", frame_status
     return "Complex Segment Rearrangement", "Multi-base Substitution Block"
 
+# --- ML Predict Route ---
 @app.route('/predict', methods=['POST'])
 def predict():
     try:
@@ -131,31 +131,7 @@ def predict():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-if __name__ == "__main__":
-    import os
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host="0.0.0.0", port=port)
-if __name__ == "__main__":
-            return jsonify({
-            "status": "success",
-            "prediction": "Pathogenic" if prediction == 1 else "Benign",
-            "confidence": f"{confidence:.2f}%",
-            "variant_class": ["Single Nucleotide Variant (SNV)", "Deletion Sequence", "Insertion Sequence", "Complex Block Indel"][var_type],
-            "molecular_mechanism": mechanism,
-            "predicted_consequence": consequence,
-            "comparative_deltas": {
-                "mass_shift_g_mol": f"{mass_delta:+.1f}",
-                "hydrogen_bond_shift": f"{bond_delta:+d}"
-            },
-            "ref_profile": ref_metrics,
-            "alt_profile": alt_metrics
-        })
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-# ==========================================
-# THIS IS THE EXACT NEW PLACE FOR THE CODE
-# ==========================================
+# --- Secure Gemini Explanation Route ---
 @app.route('/explain', methods=['POST'])
 def explain():
     try:
@@ -195,11 +171,7 @@ def explain():
     except Exception as e:
         return jsonify({"insight": f"Gemini engine was unable to compile insights at this time. Error: {str(e)}"}), 200
 
-# ==========================================
-# KEEP THIS ORIGINAL RUNNER CODE AT THE VERY BOTTOM
-# ==========================================
+# --- Production Server Launcher ---
 if __name__ == "__main__":
-    import os
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
-
