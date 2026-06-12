@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>High-Throughput Genomic Diagnostic Dashboard</title>
+    <style>
+        :root { 
+            --bg-dark: #0A0F1D;
+            --card-bg: rgba(16, 22, 42, 0.7);
+            --border-glow: rgba(58, 134, 200, 0.2);
+            --brand-blue: #3A86C8;
+            --brand-cyan: #00F2FE;
+            --text-main: #E2E8F0;
+            --text-muted: #8A99AD;
+            --error-red: #FF4A4A;
+            --success-green: #00E676;
+        }
+
+        body { 
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; 
+            background: radial-gradient(circle at 50% 0%, #1A233D 0%, var(--bg-dark) 70%);
+            color: var(--text-main); 
+            max-width: 900px; 
+            margin: 40px auto; 
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .dashboard-container { 
+            background: var(--card-bg); 
+            padding: 40px; 
+            border-radius: 24px; 
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1); 
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(12px);
+        }
+
+        .header-wrapper {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+
+        h2 { 
+            color: #FFFFFF; 
+            margin: 0; 
+            display: flex; 
+            align-items: center; 
+            gap: 12px; 
+            font-weight: 800; 
+            font-size: 26px;
+            letter-spacing: -0.5px;
+            background: linear-gradient(135deg, #FFF 0%, var(--brand-cyan) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .developer-badge {
+            background: linear-gradient(135deg, rgba(58, 134, 200, 0.1), rgba(0, 242, 254, 0.1));
+            border: 1px solid rgba(0, 242, 254, 0.2);
+            padding: 6px 14px;
+            border-radius: 30px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--brand-cyan);
+            box-shadow: 0 0 15px rgba(0, 242, 254, 0.1);
+        }
+
+        .description { 
+            color: var(--text-muted); 
+            font-size: 14px; 
+            line-height: 1.6;
+            margin-top: -15px;
+            margin-bottom: 30px;
+        }
+
+        label { 
+            display: block; 
+            margin-top: 20px; 
+            font-weight: 700; 
+            font-size: 11px; 
+            color: var(--brand-blue); 
+            text-transform: uppercase; 
+            letter-spacing: 1px; 
+        }
+
+        input { 
+            width: 100%; 
+            padding: 14px 18px; 
+            margin-top: 8px; 
+            background: rgba(0, 0, 0, 0.3);
+            border: 2px solid rgba(255, 255, 255, 0.08); 
+            border-radius: 12px; 
+            box-sizing: border-box; 
+            font-size: 16px; 
+            font-family: 'Courier New', monospace; 
+            font-weight: bold; 
+            letter-spacing: 2px; 
+            color: #FFFFFF;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        input:focus { 
+            border-color: var(--brand-blue); 
+            box-shadow: 0 0 20px rgba(58, 134, 200, 0.2);
+            outline: none; 
+        }
+
+        input.invalid { 
+            border-color: var(--error-red); 
+            background-color: rgba(255, 74, 74, 0.05); 
+            box-shadow: 0 0 20px rgba(255, 74, 74, 0.15);
+        }
+
+        .error-msg { 
+            color: var(--error-red); 
+            font-size: 12px; 
+            margin-top: 8px; 
+            font-weight: 600; 
+            display: none; 
+        }
+
+        button { 
+            background: linear-gradient(135deg, var(--brand-blue) 0%, #2563EB 100%); 
+            color: white; 
+            border: none; 
+            padding: 16px; 
+            margin-top: 30px; 
+            width: 100%; 
+            cursor: pointer; 
+            font-size: 16px; 
+            font-weight: 700; 
+            border-radius: 12px; 
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3);
+        }
+
+        button:hover:not(:disabled) { 
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(37, 99, 235, 0.5);
+        }
+
+        button:disabled { 
+            background: #2D3748; 
+            color: #718096;
+            cursor: not-allowed; 
+            box-shadow: none;
+        }
+
+        #outputPanel { 
+            margin-top: 35px; 
+            padding: 30px; 
+            border-radius: 16px; 
+            display: none; 
+            border-left: 6px solid #4A5568; 
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        .panel-row { 
+            margin-top: 20px; 
+            border-top: 1px dashed rgba(255, 255, 255, 0.1); 
+            padding-top: 18px; 
+            font-size: 14px; 
+            line-height: 1.7; 
+        }
+
+        .matrix-grid { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 25px; 
+            margin-top: 20px; 
+        }
+
+        .matrix-card { 
+            background: rgba(255, 255, 255, 0.02); 
+            padding: 20px; 
+            border-radius: 14px; 
+            border: 1px solid rgba(255, 255, 255, 0.05); 
+            font-size: 13px; 
+            line-height: 1.8; 
+        }
+
+        .matrix-title { 
+            font-size: 11px; 
+            font-weight: 800; 
+            text-transform: uppercase; 
+            margin-bottom: 12px; 
+            letter-spacing: 1px; 
+        }
+
+        .badge { 
+            display: inline-block; 
+            padding: 3px 8px; 
+            border-radius: 6px; 
+            font-size: 11px; 
+            font-weight: 700; 
+            background: rgba(255, 255, 255, 0.08); 
+            color: #FFF;
+        }
+
+        .insight-container {
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .gemini-btn {
+            background: linear-gradient(135deg, #8E2DE2 0%, #4A00E0 100%);
+            box-shadow: 0 4px 15px rgba(142, 45, 226, 0.3);
+        }
+
+        .gemini-btn:hover:not(:disabled) {
+            box-shadow: 0 6px 20px rgba(142, 45, 226, 0.5);
+        }
+
+        #geminiOutput {
+            margin-top: 15px;
+            padding: 20px;
+            background: rgba(142, 45, 226, 0.05);
+            border: 1px solid rgba(142, 45, 226, 0.2);
+            border-radius: 12px;
+            font-size: 14px;
+            line-height: 1.6;
+            color: #E2E8F0;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="dashboard-container">
+        <div class="header-wrapper">
+            <h2>🧬 Ultra-Variant Feature Extraction Suite</h2>
+            <div class="developer-badge">Dev: Prithvi Gupta</div>
+        </div>
+        <div class="description">High-throughput sequence pipeline analyzing base content skew, thermodynamic bond shift, mass metrics, and structural profiles.</div>
+
+        <label>Reference Sequence (REF String):</label>
+        <input type="text" id="refSequence" value="ATCGGCGTATAGCC" oninput="validateInputs()">
+        <div id="refError" class="error-msg">⚠️ Invalid Character! Only A, T, C, G sequences are biologically valid.</div>
+
+        <label>Alternate Sequence (ALT String):</label>
+        <input type="text" id="altSequence" value="ATCGGGGTATAGCC" oninput="validateInputs()">
+        <div id="altError" class="error-msg">⚠️ Invalid Character! Only A, T, C, G sequences are biologically valid.</div>
+
+        <button id="submitBtn" onclick="triggerSequenceAnalysis()">Run Comprehensive Extraction</button>
+
+        <div id="outputPanel"></div>
+    </div>
+
+    <script>
+        let currentAnalysisResult = null;
+
+        function validateInputs() {
+            const refInput = document.getElementById("refSequence");
+            const altInput = document.getElementById("altSequence");
+            const refError = document.getElementById("refError");
+            const altError = document.getElementById("altError");
+            const submitBtn = document.getElementById("submitBtn");
+
+            const dnaRegex = /^[ATCGatcg]+$/;
+            let isRefValid = dnaRegex.test(refInput.value.trim());
+            let isAltValid = dnaRegex.test(altInput.value.trim());
+
+            if (refInput.value.trim() === "" || !isRefValid) {
+                refInput.classList.add("invalid"); refError.style.display = "block"; isRefValid = false;
+            } else {
+                refInput.classList.remove("invalid"); refError.style.display = "none";
+            }
+
+            if (altInput.value.trim() === "" || !isAltValid) {
+                altInput.classList.add("invalid"); altError.style.display = "block"; isAltValid = false;
+            } else {
+                altInput.classList.remove("invalid"); altError.style.display = "none";
+            }
+
+            submitBtn.disabled = !(isRefValid && isAltValid);
+        }
+
+        async function triggerSequenceAnalysis() {
+            const output = document.getElementById("outputPanel");
+            output.style.display = "block";
+            output.style.background = "rgba(0,0,0,0.3)";
+            output.style.color = "var(--text-main)";
+            output.style.borderLeftColor = "var(--brand-blue)";
+            output.innerHTML = "<strong>📡 Deploying string tokens to analytical matrix server...</strong>";
+
+            const clusterApiUrl = "https://genome-predictor-xt05.onrender.com/predict"; 
+
+            try {
+                const response = await fetch(clusterApiUrl, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        ref: document.getElementById("refSequence").value.trim().toUpperCase(),
+                        alt: document.getElementById("altSequence").value.trim().toUpperCase()
+                    })
+                });
+                
+                const data = await response.json();
+                currentAnalysisResult = data;
+                
+                // Fixed line: Using hex colors directly to avoid script interpretation crashes
+                const isPathogenic = data.prediction === "Pathogenic";
+                output.style.background = isPathogenic ? "rgba(255, 74, 74, 0.05)" : "rgba(0, 230, 118, 0.05)"; 
+                output.style.borderLeftColor = isPathogenic ? "#FF4A4A" : "#00E676";
+
+                output.innerHTML = `
+                    <div style="font-size: 20px; color: #FFF;"><strong>ML Predictive Status: <span style="color:${isPathogenic ? '#FF4A4A' : '#00E676'}">${data.prediction.toUpperCase()}</span></strong></div>
+                    <div style="font-size: 13px; color: var(--text-muted);">Algorithmic Classification Confidence: <strong>${data.confidence}</strong></div>
+                    
+                    <div class="panel-row">
+                        <strong>Structural Topology:</strong> ${data.variant_class}<br>
+                        <strong>Molecular Base Mechanism:</strong> ${data.molecular_mechanism}<br>
+                        <strong>Functional Consequence:</strong> <span style="color: var(--brand-cyan)">${data.predicted_consequence}</span><br>
+                        <strong>Comparative Shifts:</strong> Mass Delta: <span class="badge">${data.comparative_deltas.mass_shift_g_mol} g/mol</span> | Hydrogen Bonds: <span class="badge">${data.comparative_deltas.hydrogen_bond_shift} bonds</span>
+                    </div>
+
+                    <div class="matrix-grid">
+                        <div class="matrix-card">
+                            <div class="matrix-title" style="color: var(--brand-blue);">REF Base Distribution</div>
+                            • Absolute Length: ${data.ref_profile.length} bp<br>
+                            • Mass Metric: ${data.ref_profile.molecular_mass} g/mol<br>
+                            • GC / AT Ratio: ${data.ref_profile.gc_content}% / ${data.ref_profile.at_content}%<br>
+                            • G-C / A-T Skew: ${data.ref_profile.gc_skew} / ${data.ref_profile.at_skew}<br>
+                            • Pure Mass Weight: Purines ${data.ref_profile.purine_ratio}% | Pyr ${data.ref_profile.pyrimidine_ratio}%<br>
+                            • Base Entropy: ${data.ref_profile.shannon_entropy}<br>
+                            • Max Homopolymer Run: ${data.ref_profile.homopolymer_run} bp
+                        </div>
+                        <div class="matrix-card">
+                            <div class="matrix-title" style="color: var(--brand-cyan);">ALT Base Distribution</div>
+                            • Absolute Length: ${data.alt_profile.length} bp<br>
+                            • Mass Metric: ${data.alt_profile.molecular_mass} g/mol<br>
+                            • GC / AT Ratio: ${data.alt_profile.gc_content}% / ${data.alt_profile.at_content}%<br>
+                            • G-C / A-T Skew: ${data.alt_profile.gc_skew} / ${data.alt_profile.at_skew}<br>
+                            • Pure Mass Weight: Purines ${data.alt_profile.purine_ratio}% | Pyr ${data.alt_profile.pyrimidine_ratio}%<br>
+                            • Base Entropy: ${data.alt_profile.shannon_entropy}<br>
+                            • Max Homopolymer Run: ${data.alt_profile.homopolymer_run} bp
+                        </div>
+                    </div>
+
+                    <div class="insight-container">
+                        <button class="gemini-btn" id="geminiBtn" onclick="fetchGeminiInsights()">✨ Generate Advanced Gemini Insights</button>
+                        <div id="geminiOutput"></div>
+                    </div>
+                `;
+            } catch (error) {
+                output.style.borderLeftColor = "#FF4A4A";
+                output.innerHTML = "<strong>❌ Cluster Sync Timeout</strong><br><small>Failed to compute structural matrices. Ensure backend is active.</small>";
+            }
+        }
+
+        async function fetchGeminiInsights() {
+            const geminiBtn = document.getElementById("geminiBtn");
+            const geminiBox = document.getElementById("geminiOutput");
+            
+            geminiBtn.disabled = true;
+            geminiBtn.innerText = "🔮 Consulting Gemini Brain Matrix...";
+            geminiBox.style.display = "block";
+            geminiBox.innerHTML = "<em>Analyzing metrics, calculating reading frame alterations, and structural delta shifts...</em>";
+
+            const geminiApiEndpoint = "https://genome-predictor-xt05.onrender.com/explain";
+
+            try {
+                const response = await fetch(geminiApiEndpoint, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ metrics: currentAnalysisResult })
+                });
+                const dynamicData = await response.json();
+                geminiBox.innerHTML = `<strong>🤖 Gemini Engine Interpretation:</strong><br><p>${dynamicData.insight}</p>`;
+            } catch (e) {
+                geminiBox.innerHTML = "❌ Failed to secure insights. Ensure your backend environment key is injected.";
+            } finally {
+                geminiBtn.disabled = false;
+                geminiBtn.innerText = "✨ Regenerate Advanced Gemini Insights";
+            }
+        }
+    </script>
+</body>
+</html>
