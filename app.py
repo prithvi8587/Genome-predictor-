@@ -2,7 +2,7 @@ import os
 import joblib
 import math
 import requests
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 
 app = Flask(__name__)
@@ -87,6 +87,11 @@ def evaluate_structural_impact(ref, alt):
         return f"Nucleotide Insertion (+{diff} bp)", frame_status
     return "Complex Segment Rearrangement", "Multi-base Substitution Block"
 
+# --- Frontend Dashboard Route ---
+@app.route('/')
+def home():
+    return render_template('index.html')
+
 # --- ML Predict Route ---
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -142,7 +147,8 @@ def explain():
         if not api_key:
             return jsonify({"insight": "Configuration missing: Please add GEMINI_API_KEY to Render environment variables."}), 200
 
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+        # Updated endpoint to use secure header injection
+        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
         
         prompt = f"""
         As an expert clinical bioinformatician, analyze this genetic variant data:
@@ -162,16 +168,29 @@ def explain():
             }]
         }
         
-        response = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=10)
-        response_json = response.json()
-        insight_text = response_json['candidates'][0]['content']['parts'][0]['text']
+        headers = {
+            "Content-Type": "application/json",
+            "x-goog-api-key": api_key
+        }
         
-        return jsonify({"insight": insight_text.strip()})
+        response = requests.post(url, json=payload, headers=headers, timeout=10)
+        response_json = response.json()
+        
+        # Check if Google returned an API error
+        if 'error' in response_json:
+            return jsonify({"insight": f"Google API Error: {response_json['error'].get('message', 'Unknown failure')}"}), 200
+            
+        # Extract text response safely
+        try:
+            insight_text = response_json['candidates'][0]['content']['parts'][0]['text']
+            return jsonify({"insight": insight_text.strip()})
+        except (KeyError, IndexError):
+            return jsonify({"insight": f"Unexpected response format from Google. Raw: {str(response_json)}"}), 200
 
     except Exception as e:
         return jsonify({"insight": f"Gemini engine was unable to compile insights at this time. Error: {str(e)}"}), 200
 
 # --- Production Server Launcher ---
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))
+    port = int(os.environ.get("PORT", 7860))
     app.run(host="0.0.0.0", port=port)
