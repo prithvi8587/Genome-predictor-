@@ -12,7 +12,7 @@ RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
 COPY . .
 
 # Expose the network port
-EXPOSE 7860
+EXPOSE 10000
 
 # Command to run the application
 CMD ["python", "app.py"]
